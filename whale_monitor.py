@@ -23,7 +23,7 @@ st.subheader("Open Interest (Coinglass)")
 try:
     # Đây chỉ là ví dụ, bạn cần API key từ Coinglass
     url_oi = "https://open-api.coinglass.com/public/v2/openInterest?symbol=BTC"
-    headers = {"coinglassSecret": "Y254619f701bf423d9b03f2795ffdd18b"}
+    headers = {"coinglassSecret": "a103f20a763d4ad0a39f15aa7bb8d6ec"}
     resp = requests.get(url_oi, headers=headers).json()
     df_oi = pd.DataFrame(resp["data"]["openInterestHistory"])
     st.line_chart(df_oi.set_index("time")["sumOpenInterest"])
