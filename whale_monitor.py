@@ -5,7 +5,7 @@ import pandas as pd
 API_KEY = "a103f20a763d4ad0a39f15aa7bb8d6ec"
 BASE_URL = "https://open-api.coinglass.com/public/v2"
 
-headers = {"coinglassSecret":}
+headers = {"coinglassSecret": API_KEY}
 
 def get_funding_rates(symbol="BTC"):
     url = f"{BASE_URL}/funding?symbol={symbol}"
