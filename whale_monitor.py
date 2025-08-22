@@ -1,80 +1,56 @@
-# -*- coding: utf-8 -*-
+# whale_dashboard.py
+import streamlit as st
 import requests
-import time
+import pandas as pd
+import plotly.express as px
+import datetime
 
-# ⚙️ Config
-SYMBOL = "BTCUSDT"
-INTERVAL = 10  # giây mỗi lần check
+st.set_page_config(page_title="Whale Monitor", layout="wide")
 
-def get_funding(symbol):
-    url = f"https://fapi.binance.com/fapi/v1/fundingRate?symbol={symbol}&limit=1"
-    r = requests.get(url).json()
-    return float(r[0]["fundingRate"])
+# --- Sidebar ---
+st.sidebar.title("🐋 Whale Monitor Dashboard")
+symbol = st.sidebar.selectbox("Chọn cặp coin", ["BTCUSDT", "ETHUSDT", "BNBUSDT"])
+interval = st.sidebar.selectbox("Khung thời gian", ["1h", "4h", "12h", "1d"])
 
-def get_open_interest(symbol):
-    url = f"https://fapi.binance.com/fapi/v1/openInterest?symbol={symbol}"
-    r = requests.get(url).json()
-    return float(r["openInterest"])
+# --- Funding Rate ---
+st.subheader("📊 Funding Rate")
+url_funding = f"https://fapi.binance.com/fapi/v1/fundingRate?symbol={symbol}&limit=50"
+funding_data = requests.get(url_funding).json()
+df_funding = pd.DataFrame(funding_data)
+df_funding["fundingTime"] = pd.to_datetime(df_funding["fundingTime"], unit="ms")
+fig_funding = px.line(df_funding, x="fundingTime", y="fundingRate", title=f"{symbol} Funding Rate")
+st.plotly_chart(fig_funding, use_container_width=True)
 
-def get_liquidations(symbol):
-    url = f"https://fapi.binance.com/fapi/v1/allForceOrders?symbol={symbol}&limit=5"
-    r = requests.get(url).json()
-    return r  # trả về list thanh lý gần nhất
+# --- Open Interest ---
+st.subheader("📈 Open Interest (OI)")
+url_oi = f"https://fapi.binance.com/futures/data/openInterestHist?symbol={symbol}&period={interval}&limit=50"
+oi_data = requests.get(url_oi).json()
+df_oi = pd.DataFrame(oi_data)
+df_oi["timestamp"] = pd.to_datetime(df_oi["timestamp"], unit="ms")
+fig_oi = px.line(df_oi, x="timestamp", y="sumOpenInterest", title=f"{symbol} Open Interest")
+st.plotly_chart(fig_oi, use_container_width=True)
 
-# 🔔 Hàm phân tích
-def analyze(funding, oi_now, oi_prev, liq_data):
-    signal = "SIDEWAY"
-    notes = []
+# --- Volume ---
+st.subheader("💹 Trading Volume")
+url_klines = f"https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval=1h&limit=100"
+klines = requests.get(url_klines).json()
+df_vol = pd.DataFrame(klines, columns=["time","o","h","l","c","v","close_time","qv","trades","tb","tq","ignore"])
+df_vol["time"] = pd.to_datetime(df_vol["time"], unit="ms")
+fig_vol = px.bar(df_vol, x="time", y="v", title=f"{symbol} Futures Volume")
+st.plotly_chart(fig_vol, use_container_width=True)
 
-    # Funding
-    if funding > 0.01:
-        notes.append("Funding cao → Retail Long nhiều → dễ DUMP")
-        signal = "DUMP"
-    elif funding < -0.01:
-        notes.append("Funding âm → Retail Short nhiều → dễ PUMP")
-        signal = "PUMP"
-    else:
-        notes.append("Funding trung lập")
+# --- Liquidation Heatmap (demo) ---
+st.subheader("🔥 Liquidation Heatmap (Demo)")
+st.info("API heatmap từ Coinglass/Hyblock cần API key riêng. Ở đây demo bằng Volume clusters.")
+fig_heat = px.density_heatmap(df_vol, x="time", y="c", z="v", nbinsx=20, nbinsy=20, title="Liquidation Heatmap (proxy)")
+st.plotly_chart(fig_heat, use_container_width=True)
 
-    # OI biến động
-    if oi_now > oi_prev * 1.02:
-        notes.append("OI tăng mạnh → Cá mập gom vị thế")
-    elif oi_now < oi_prev * 0.98:
-        notes.append("OI giảm → thoát vị thế hoặc sau thanh lý")
-
-    # Thanh lý
-    if len(liq_data) > 0:
-        side = liq_data[0]["side"]
-        notes.append(f"Thanh lý gần nhất: {side}")
-
-    return signal, notes
-
-
-def main():
-    print(f"🐳 Whale Monitor cho {SYMBOL}")
-    oi_prev = get_open_interest(SYMBOL)
-    time.sleep(1)
-
-    while True:
-        try:
-            funding = get_funding(SYMBOL)
-            oi_now = get_open_interest(SYMBOL)
-            liq_data = get_liquidations(SYMBOL)
-
-            signal, notes = analyze(funding, oi_now, oi_prev, liq_data)
-
-            print(f"\n[{time.strftime('%H:%M:%S')}] Funding={funding:.4f}, OI={oi_now}")
-            print(f"📊 Dự báo: {signal}")
-            for n in notes:
-                print("  -", n)
-
-            oi_prev = oi_now
-            time.sleep(INTERVAL)
-
-        except Exception as e:
-            print("❌ Error:", e)
-            time.sleep(5)
-
-
-if __name__ == "__main__":
-    main()
+# --- Tin tức ---
+st.subheader("📰 Tin tức Crypto")
+news_url = "https://cryptopanic.com/api/v1/posts/?auth_token=YOUR_TOKEN&public=true"
+try:
+    news = requests.get(news_url).json()
+    for n in news["results"][:5]:
+        st.markdown(f"- [{n['title']}]({n['url']})")
+except:
+    st.warning("Không load được tin tức (cần API key CryptoPanic).")
