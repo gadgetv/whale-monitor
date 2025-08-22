@@ -4,7 +4,7 @@ from datetime import datetime
 from dateutil import tz
 
 # Thay YOUR_KEY bằng API key Coinglass của bạn
-API_KEY = "YOUR_KEY"
+API_KEY = "a103f20a763d4ad0a39f15aa7bb8d6ec"
 HEADERS = {"coinglassSecret": "a103f20a763d4ad0a39f15aa7bb8d6ec"}
 BASE = "https://open-api-v4.coinglass.com"
 
