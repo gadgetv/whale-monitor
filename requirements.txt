@@ -1,5 +1,4 @@
 streamlit
 requests
 python-dateutil
-pip install streamlit requests
-streamlit run whale_monitor.py
+
