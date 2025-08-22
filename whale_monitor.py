@@ -5,7 +5,7 @@ from dateutil import tz
 
 # Thay YOUR_KEY bằng API key Coinglass của bạn
 API_KEY = "YOUR_KEY"
-HEADERS = {"coinglassSecret": API_KEY}
+HEADERS = {"coinglassSecret": "a103f20a763d4ad0a39f15aa7bb8d6ec"}
 BASE = "https://open-api-v4.coinglass.com"
 
 st.set_page_config(page_title="TC Futures Dashboard (Coinglass API)", layout="wide")
