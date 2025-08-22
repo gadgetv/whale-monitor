@@ -1,57 +1,67 @@
 import streamlit as st
 import requests
-from datetime import datetime
-from dateutil import tz
 
-# Thay YOUR_KEY bằng API key Coinglass của bạn
+# ==============================
+# ⚙️ Cấu hình API
+# ==============================
 API_KEY = "a103f20a763d4ad0a39f15aa7bb8d6ec"
-HEADERS = {"coinglassSecret": "a103f20a763d4ad0a39f15aa7bb8d6ec"}
 BASE = "https://open-api-v4.coinglass.com"
+HEADERS = {"coinglassSecret": API_KEY}
 
-st.set_page_config(page_title="TC Futures Dashboard (Coinglass API)", layout="wide")
-st.title("📊 TC Futures Dashboard (Coinglass API)")
 
 def fetch_json(path, params=None):
+    """Hàm lấy dữ liệu JSON từ Coinglass API"""
     try:
-        resp = requests.get(f"{BASE}{path}", headers=HEADERS, params=params, timeout=10)
-        resp.raise_for_status()
-        return resp.json()
+        r = requests.get(BASE + path, headers=HEADERS, params=params, timeout=10)
+        r.raise_for_status()
+        return r.json()
     except Exception as e:
-        st.error(f"Lỗi API {path}: {e}")
-        return {}
+        return {"error": str(e)}
 
-# 1. Spot Price via Coinglass: dùng price OHLC history, lấy phần tử mới nhất
-spot_j = fetch_json("/api/price/ohlc-history", {"symbol": "BTC", "interval": "1m", "limit": 1})
-spot_price = None
-if spot_j.get("data"):
-    last = spot_j["data"][-1]
-    spot_price = float(last.get("close", 0))
 
-# 2. Open Interest (aggregate across exchanges)
-oi_j = fetch_json("/api/futures/open-interest/exchange-list", {"symbol": "BTC"})
-oi_usd = oi_j.get("data", [{}])[0].get("open_interest_usd", None)
+# ==============================
+# 📊 Streamlit App
+# ==============================
+st.set_page_config(page_title="TC Futures Dashboard", layout="wide")
+st.title("📊 TC Futures Dashboard (Coinglass API)")
 
-# 3. Funding Rate (Binance stablecoin-margin)
-fr_j = fetch_json("/api/futures/funding-rate/exchange-list", {"symbol": "BTC"})
-fr_list = fr_j.get("data", [{}])[0].get("stablecoin_margin_list", [])
-fr_rate = None; fr_next = None
-for f in fr_list:
-    if f.get("exchange") == "Binance":
-        fr_rate = f.get("funding_rate")
-        fr_next = f.get("next_funding_time")
-        break
+# -------- Spot Price --------
+spot = fetch_json("/api/spot/coins-markets")
+btc_price = None
+if "data" in spot:
+    for c in spot["data"]:
+        if c.get("symbol") == "BTC":
+            btc_price = c.get("current_price")
 
-# Display Metrics
+# -------- Futures OI --------
+fut = fetch_json("/api/futures/coins-markets")
+oi_total = None
+if "data" in fut:
+    for c in fut["data"]:
+        if c.get("symbol") == "BTC":
+            oi_total = c.get("open_interest_usd")
+
+# -------- Funding Rate (Binance) --------
+fund = fetch_json("/api/futures/fundingRate/exchange-list", {"symbol": "BTC"})
+fund_binance = None
+if "data" in fund and fund["data"]:
+    for ex in fund["data"][0].get("stablecoin_margin_list", []):
+        if ex["exchange"] == "Binance":
+            fund_binance = ex["funding_rate"]
+
+# -------- Liquidation Heatmap --------
+heatmap = fetch_json("/api/futures/liquidation/heatmap/model1", {"symbol": "BTC"})
+
+# ==============================
+# 📈 Hiển thị kết quả
+# ==============================
 col1, col2, col3 = st.columns(3)
-col1.metric("BTC Spot Price", f"{spot_price:,.2f} USDT" if spot_price else "—")
-col2.metric("Open Interest (Total USD)", f"{oi_usd:,.0f}" if oi_usd else "—")
-if fr_rate is not None:
-    dt = datetime.fromtimestamp(fr_next/1000, tz=tz.tzlocal()) if fr_next else ""
-    col3.metric("Funding Rate (Binance)", f"{fr_rate*100:.4f} %", delta=None, help=f"Next: {dt}")
-else:
-    col3.metric("Funding Rate (Binance)", "—")
+col1.metric("BTC Spot Price", f"{btc_price:,.2f} USDT" if btc_price else "—")
+col2.metric("Open Interest (USD)", f"{oi_total:,.0f}" if oi_total else "—")
+col3.metric("Funding Rate (Binance)", f"{fund_binance*100:.4f}%" if fund_binance else "—")
 
-# 4. Liquidation Heatmap
-st.subheader("📉 Liquidation Heatmap (Pair model1)")
-hm_j = fetch_json("/api/futures/liquidation/heatmap/model1", {"symbol": "BTC"})
-st.json(hm_j)
+st.subheader("📉 Liquidation Heatmap (BTC)")
+if "data" in heatmap:
+    st.json(heatmap["data"])
+else:
+    st.error(heatmap.get("error", "Không lấy được dữ liệu"))
