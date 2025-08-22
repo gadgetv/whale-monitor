@@ -1,43 +1,57 @@
-# -*- coding: utf-8 -*-
 import streamlit as st
 import requests
+from datetime import datetime
+from dateutil import tz
 
-# ⚙️ Config API
-API_KEY = "YOUR_COINGLASS_KEY"  # <-- thay bằng key của bạn
+# Thay YOUR_KEY bằng API key Coinglass của bạn
+API_KEY = "YOUR_KEY"
 HEADERS = {"coinglassSecret": API_KEY}
+BASE = "https://open-api-v4.coinglass.com"
 
-st.set_page_config(page_title="TC Futures Dashboard", layout="wide")
+st.set_page_config(page_title="TC Futures Dashboard (Coinglass API)", layout="wide")
 st.title("📊 TC Futures Dashboard (Coinglass API)")
 
-# 🟢 Hàm lấy dữ liệu từ Coinglass
-def get_data(url, params=None):
+def fetch_json(path, params=None):
     try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=10)
-        r.raise_for_status()
-        return r.json()
+        resp = requests.get(f"{BASE}{path}", headers=HEADERS, params=params, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
     except Exception as e:
-        st.error(f"Lỗi khi lấy dữ liệu từ {url}: {e}")
+        st.error(f"Lỗi API {path}: {e}")
         return {}
 
-# 🔹 Spot Price
-spot = get_data("https://open-api.coinglass.com/api/index/spot_price", {"symbol": "BTC"})
-spot_price = spot.get("data", {}).get("price", 0)
+# 1. Spot Price via Coinglass: dùng price OHLC history, lấy phần tử mới nhất
+spot_j = fetch_json("/api/price/ohlc-history", {"symbol": "BTC", "interval": "1m", "limit": 1})
+spot_price = None
+if spot_j.get("data"):
+    last = spot_j["data"][-1]
+    spot_price = float(last.get("close", 0))
 
-# 🔹 Open Interest
-oi = get_data("https://open-api.coinglass.com/api/futures/open_interest", {"symbol": "BTC"})
-oi_value = oi.get("data", [{}])[0].get("openInterest", 0) if oi.get("data") else 0
+# 2. Open Interest (aggregate across exchanges)
+oi_j = fetch_json("/api/futures/open-interest/exchange-list", {"symbol": "BTC"})
+oi_usd = oi_j.get("data", [{}])[0].get("open_interest_usd", None)
 
-# 🔹 Funding Rate
-funding = get_data("https://open-api.coinglass.com/api/futures/funding_rates", {"symbol": "BTC"})
-fund_rate = funding.get("data", [{}])[0].get("fundingRate", 0) if funding.get("data") else 0
+# 3. Funding Rate (Binance stablecoin-margin)
+fr_j = fetch_json("/api/futures/funding-rate/exchange-list", {"symbol": "BTC"})
+fr_list = fr_j.get("data", [{}])[0].get("stablecoin_margin_list", [])
+fr_rate = None; fr_next = None
+for f in fr_list:
+    if f.get("exchange") == "Binance":
+        fr_rate = f.get("funding_rate")
+        fr_next = f.get("next_funding_time")
+        break
 
-# 🔹 Layout hiển thị
+# Display Metrics
 col1, col2, col3 = st.columns(3)
-col1.metric("BTC Spot Price", f"{spot_price:,.2f} USDT")
-col2.metric("Open Interest", f"{oi_value:,.2f}")
-col3.metric("Funding Rate", f"{fund_rate*100:.4f} %")
+col1.metric("BTC Spot Price", f"{spot_price:,.2f} USDT" if spot_price else "—")
+col2.metric("Open Interest (Total USD)", f"{oi_usd:,.0f}" if oi_usd else "—")
+if fr_rate is not None:
+    dt = datetime.fromtimestamp(fr_next/1000, tz=tz.tzlocal()) if fr_next else ""
+    col3.metric("Funding Rate (Binance)", f"{fr_rate*100:.4f} %", delta=None, help=f"Next: {dt}")
+else:
+    col3.metric("Funding Rate (Binance)", "—")
 
-# 🔹 Liquidation Heatmap
-st.subheader("📉 Liquidation Heatmap (BTC)")
-heatmap = get_data("https://open-api.coinglass.com/api/futures/liquidation_heatmap", {"symbol": "BTC"})
-st.json(heatmap)  # hiển thị raw JSON trước
+# 4. Liquidation Heatmap
+st.subheader("📉 Liquidation Heatmap (Pair model1)")
+hm_j = fetch_json("/api/futures/liquidation/heatmap/model1", {"symbol": "BTC"})
+st.json(hm_j)
