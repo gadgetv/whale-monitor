@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 API_KEY = "YOUR_COINGLASS_KEY"  # 🔑 thay bằng key của bạn
-headers = {"coinglassSecret": a103f20a763d4ad0a39f15aa7bb8d6ec}
+headers = {"coinglassSecret": "a103f20a763d4ad0a39f15aa7bb8d6ec"}
 
 st.title("📊 BTC Futures Dashboard (Coinglass API)")
 
