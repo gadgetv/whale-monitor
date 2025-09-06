@@ -31,8 +31,8 @@ st.title("📊 Binance Futures Supertrend Tracker")
 
 # Nhập API key
 st.sidebar.header("🔑 Binance API Keys")
-api_key = st.sidebar.text_input("API Key", type="password")
-api_secret = st.sidebar.text_input("API Secret", type="password")
+api_key = st.sidebar.text_input("API Key", type="oL8yT6QFOFSjLwfREVy2aVVUJVqUB4oJSZCPny4JxpHlQjhBizgbEb2N1KhHUSVg")
+api_secret = st.sidebar.text_input("API Secret", type="eABiQRYhgRG3uZ2RIMhvz2L0vW9NnnI4JJ7o3xw5mAKXTh2inbB8aQQf6taOFLO")
 
 # Nếu có key thì kết nối
 if api_key and api_secret:
