@@ -3,14 +3,9 @@ import pandas as pd
 import streamlit as st
 
 # ==============================
-# 🔑 API KEY & SECRET
+# 🔗 Kết nối Binance Futures (PUBLIC API, không cần key)
 # ==============================
-api_key = "oL8yT6QFOFSjLwfREVy2aVVUJVqUB4oJSZCPny4JxpHlQjhBizgbEb2N1KhHUSVg"
-api_secret = "eABiQRYhgRG3uZ2RIMhvz2L0vW9NnnI4JJ7o3xw5mAKXTh2inbB8aQQf6taOFLO"
-
 exchange = ccxt.binance({
-    "apiKey": api_key,
-    "secret": api_secret,
     "enableRateLimit": True,
     "options": {"defaultType": "future"}
 })
@@ -47,7 +42,7 @@ def fetch_supertrend(symbol: str, timeframe="15m", limit=200):
             df.loc[i, "ST"] = df.loc[i - 1, "ST"]
 
     last = df.iloc[-1]
-    signal = "LONG" if last["close"] > last["ST"] else "SHORT"
+    signal = "LONG ✅" if last["close"] > last["ST"] else "SHORT ❌"
 
     return {
         "coin": market,
@@ -60,7 +55,7 @@ def fetch_supertrend(symbol: str, timeframe="15m", limit=200):
 # ==============================
 # 📌 STREAMLIT APP
 # ==============================
-st.title("📈 Binance Futures Supertrend Monitor")
+st.title("📈 Binance Futures Supertrend Monitor (15m)")
 
 coin = st.text_input("Nhập mã coin (VD: BTC, ETH, BNB):", "BTC")
 
