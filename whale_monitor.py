@@ -3,9 +3,9 @@ import pandas as pd
 import streamlit as st
 
 # ==============================
-# 🔗 Kết nối Binance Futures (PUBLIC API, không cần key)
+# 🔗 Kết nối Bybit Futures (PUBLIC API, không cần key)
 # ==============================
-exchange = ccxt.binance({
+exchange = ccxt.bybit({
     "enableRateLimit": True,
     "options": {"defaultType": "future"}
 })
@@ -55,7 +55,7 @@ def fetch_supertrend(symbol: str, timeframe="15m", limit=200):
 # ==============================
 # 📌 STREAMLIT APP
 # ==============================
-st.title("📈 Binance Futures Supertrend Monitor (15m)")
+st.title("📈 Bybit Futures Supertrend Monitor (15m)")
 
 coin = st.text_input("Nhập mã coin (VD: BTC, ETH, BNB):", "BTC")
 
