@@ -1,76 +1,78 @@
-import streamlit as st
-import pandas as pd
 import ccxt
-from datetime import datetime
+import pandas as pd
+import streamlit as st
 
-st.set_page_config(page_title="Binance Futures Supertrend", layout="wide")
+# ==============================
+# 🔑 API KEY & SECRET
+# ==============================
+api_key = "oL8yT6QFOFSjLwfREVy2aVVUJVqUB4oJSZCPny4JxpHlQjhBizgbEb2N1KhHUSVg"
+api_secret = "eABiQRYhgRG3uZ2RIMhvz2L0vW9NnnI4JJ7o3xw5mAKXTh2inbB8aQQf6taOFLO"
 
-# ================== SUPERTREND ==================
-def supertrend(df, period=10, multiplier=3):
+exchange = ccxt.binance({
+    "apiKey": api_key,
+    "secret": api_secret,
+    "enableRateLimit": True,
+    "options": {"defaultType": "future"}
+})
+
+# ==============================
+# 📌 HÀM TÍNH SUPER TREND
+# ==============================
+def fetch_supertrend(symbol: str, timeframe="15m", limit=200):
+    market = symbol.upper() + "/USDT"
+    ohlcv = exchange.fetch_ohlcv(market, timeframe=timeframe, limit=limit)
+
+    df = pd.DataFrame(ohlcv, columns=["time", "open", "high", "low", "close", "volume"])
+    df["time"] = pd.to_datetime(df["time"], unit="ms")
+
+    # ATR
     df["H-L"] = df["high"] - df["low"]
     df["H-C"] = abs(df["high"] - df["close"].shift())
     df["L-C"] = abs(df["low"] - df["close"].shift())
     df["TR"] = df[["H-L", "H-C", "L-C"]].max(axis=1)
-    df["ATR"] = df["TR"].rolling(window=period).mean()
+    df["ATR"] = df["TR"].rolling(window=10).mean()
 
+    # Supertrend
+    multiplier = 3
     df["Upper Basic"] = (df["high"] + df["low"]) / 2 + multiplier * df["ATR"]
     df["Lower Basic"] = (df["high"] + df["low"]) / 2 - multiplier * df["ATR"]
 
     df["ST"] = 0.0
     for i in range(1, len(df)):
-        if df["close"][i] > df["Upper Basic"][i-1]:
+        if df["close"][i] > df["Upper Basic"][i - 1]:
             df.loc[i, "ST"] = df["Lower Basic"][i]
-        elif df["close"][i] < df["Lower Basic"][i-1]:
+        elif df["close"][i] < df["Lower Basic"][i - 1]:
             df.loc[i, "ST"] = df["Upper Basic"][i]
         else:
-            df.loc[i, "ST"] = df.loc[i-1, "ST"]
-    return df
+            df.loc[i, "ST"] = df.loc[i - 1, "ST"]
 
-# ================== STREAMLIT UI ==================
-st.title("📊 Binance Futures Supertrend Tracker")
+    last = df.iloc[-1]
+    signal = "LONG" if last["close"] > last["ST"] else "SHORT"
 
-# Nhập API key
-st.sidebar.header("🔑 Binance API Keys")
-api_key = st.sidebar.text_input("oL8yT6QFOFSjLwfREVy2aVVUJVqUB4oJSZCPny4JxpHlQjhBizgbEb2N1KhHUSVg", type="password")
-api_secret = st.sidebar.text_input("eABiQRYhgRG3uZ2RIMhvz2L0vW9NnnI4JJ7o3xw5mAKXTh2inbB8aQQf6taOFLO", type="password")
+    return {
+        "coin": market,
+        "time": str(last["time"]),
+        "close": last["close"],
+        "supertrend": last["ST"],
+        "signal": signal
+    }
 
-# Nếu có key thì kết nối
-if api_key and api_secret:
+# ==============================
+# 📌 STREAMLIT APP
+# ==============================
+st.title("📈 Binance Futures Supertrend Monitor")
+
+coin = st.text_input("Nhập mã coin (VD: BTC, ETH, BNB):", "BTC")
+
+if st.button("Lấy dữ liệu"):
     try:
-        exchange = ccxt.binance({
-            "apiKey": api_key,
-            "secret": api_secret,
-            "options": {"defaultType": "future"}
-        })
-
-        coin = st.sidebar.text_input("Nhập coin (VD: BTC, ETH, BNB)", "BTC").upper()
-        symbol = f"{coin}/USDT"
-
-        timeframe = st.sidebar.selectbox("Chọn khung", ["5m", "15m", "1h", "4h", "1d"], index=1)
-
-        # Lấy dữ liệu
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=200)
-        df = pd.DataFrame(ohlcv, columns=["time", "open", "high", "low", "close", "volume"])
-        df["time"] = pd.to_datetime(df["time"], unit="ms")
-
-        # Tính supertrend
-        df = supertrend(df)
-        last = df.iloc[-1]
-        signal = "🟢 LONG" if last["close"] > last["ST"] else "🔴 SHORT"
-
-        # Hiển thị kết quả
-        st.subheader(f"Kết quả cho {symbol} ({timeframe})")
-        st.metric("Giá hiện tại", f"{last['close']:,} USDT")
-        st.metric("Supertrend", f"{last['ST']:.2f}")
-        st.metric("Tín hiệu Entry", signal)
-
-        # Hiển thị bảng
-        st.dataframe(df.tail(20))
-
-        # Vẽ biểu đồ
-        st.line_chart(df.set_index("time")[["close", "ST"]])
-
+        result = fetch_supertrend(coin, timeframe="15m")
+        st.success(f"""
+        Coin: **{result['coin']}**  
+        ⏰ Thời gian: {result['time']}  
+        💰 Giá hiện tại: {result['close']}  
+        📉 Supertrend: {result['supertrend']}  
+        🎯 Entry gần nhất: **{result['signal']}**
+        """)
     except Exception as e:
-        st.error(f"Lỗi khi kết nối Binance: {e}")
-else:
-    st.warning("👉 Vui lòng nhập API Key & Secret ở sidebar để bắt đầu.")
+        st.error(f"Lỗi: {e}")
